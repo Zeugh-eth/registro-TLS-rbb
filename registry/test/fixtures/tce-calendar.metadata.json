@@ -1,0 +1,10 @@
+{
+  "completeTranscript": true,
+  "notaryPublicKey": "033c5b2ca377e492336f77db6bb58f8c9751cdd4d7f4b5bc72acdf1605027c80bf",
+  "observedAt": 1794947845,
+  "schema": "rbb-tlsn-session/v1",
+  "serverName": "doe.tce.sp.gov.br",
+  "tlsVersion": "V1_2",
+  "tlsnVersion": "0.1.0-alpha.14",
+  "trustModel": "local-notary"
+}

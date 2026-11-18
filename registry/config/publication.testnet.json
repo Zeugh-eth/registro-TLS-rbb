@@ -1,0 +1,7 @@
+{
+  "contract": "0xdC0c47925AD2d85626027cE773A4db9d19Cac569",
+  "deploymentBlock": 22997021,
+  "verifier": "0xc5F79B0cEEbD34412a7a1dEd28912be983580849",
+  "policy": "tce-sp-doe-tlsn-local/v1",
+  "trustModel": "local-notary"
+}

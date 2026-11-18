@@ -1,0 +1,32 @@
+# Private operator configuration and all runtime state
+**/.env
+**/.env.*
+!**/.env.example
+**/state/
+**/data/
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/*.log
+/operations/networks.json
+
+# Generated dependencies and build outputs
+**/node_modules/
+**/target/
+**/build/
+/registry/public/ethers.js
+**/__pycache__/
+*.pyc
+.DS_Store
+.serena/
+
+# Local reports are not public source files
+/reports/*
+!/reports/publication/
+/reports/publication/*
+!/reports/publication/.gitkeep
+
+# Only the pinned upstream submodule belongs under vendor
+/registry/vendor/*
+!/registry/vendor/tlsn/

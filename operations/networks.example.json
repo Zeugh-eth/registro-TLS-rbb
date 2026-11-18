@@ -1,0 +1,6 @@
+{
+  "testnet": {
+    "rpc_url": "http://52.87.7.52:8545"
+  },
+  "ssh_target": null
+}
