@@ -36,15 +36,24 @@ function renderDocument(data){
 }
 function renderHistory(data){
   history=data;$('history').hidden=false;$('history-records').replaceChildren();
-  $('history-title').textContent=data.registered?'Primeiro registro encontrado.':'Nenhum registro para esta edição.';
+  const archived=data.verification?.source==='archive';
+  const brt=value=>new Date(value).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})+' BRT';
+  $('history-title').textContent=data.registered?(archived?'Registro confirmado anteriormente.':'Primeiro registro encontrado.'):'Nenhum registro para esta edição.';
+  $('history-source').textContent=archived
+    ? 'A RBB está indisponível nesta consulta. Exibindo a cópia preservada, conferida na rede em '+brt(data.verification.verifiedAt)+'.'+(data.verification.partial?' A lista desta data pode estar incompleta.':'')
+    : 'Consulta ao contrato na RBB Testnet · '+brt(data.verification?.verifiedAt||data.readAt)+'.';
   for(const record of data.records){
     const item=document.createElement('article');item.className='history-record';
-    for(const [tag,value] of [['h3',new Date(record.registeredAtISO).toLocaleString('pt-BR')],['p','Primeiro registro no bloco · '+record.registeredAtISO],['p',record.sourceURL],['p','Edição no calendário: '+record.editionDate+' · publicação declarada: '+String(record.publicationDateCode).replace(/(\d{4})(\d{2})(\d{2})/,'$3/$2/$1')],['p','Coleta autenticada em: '+record.observedAtISO],['code','SHA-256: '+record.documentHash]]){const el=document.createElement(tag);el.textContent=value;item.append(el);}
+    for(const [tag,value] of [['h3',brt(record.registeredAtISO)],['p','Primeiro registro na blockchain · '+record.registeredAtISO],['p',record.sourceURL],['p','Edição no calendário: '+record.editionDate+' · publicação declarada: '+String(record.publicationDateCode).replace(/(\d{4})(\d{2})(\d{2})/,'$3/$2/$1')],['p','Coleta autenticada em: '+record.observedAtISO],['code','SHA-256: '+record.documentHash]]){const el=document.createElement(tag);el.textContent=value;item.append(el);}
+    if(record.transactionHash){const tx=document.createElement('p');tx.textContent='Transação: '+record.transactionHash;item.append(tx);}
+    if(record.declarationURL){const link=document.createElement('a');link.href=record.declarationURL;link.textContent='Ver transação, recibo e metadados';item.append(link,document.createElement('br'));}
     if(record.evidenceAvailable){const link=document.createElement('a');link.href='/api/publication/evidence/'+record.evidenceHash;link.textContent='Baixar evidência preservada';item.append(document.createElement('br'),link);}
-    else{const note=document.createElement('p');note.textContent='O registro está na cadeia; a cópia da prova não foi encontrada neste servidor.';item.append(note);}
+    else{const note=document.createElement('p');note.textContent='A cópia da prova não foi encontrada neste servidor.';item.append(note);}
     $('history-records').append(item);
   }
-  status(data.registered?'Histórico consultado na RBB. O site do TCE não precisou ser acessado.':'Esta URL/edição não tem registro neste contrato. Nenhuma data passada foi inferida.');
+  status(data.registered
+    ? (archived?'Registro encontrado no acervo salvo. A conferência atual na rede não foi concluída.':'Registro confirmado na RBB agora. O site do TCE não precisou ser acessado.')
+    : 'A consulta atual ao contrato não encontrou registro desta URL/edição.');
 }
 function restorePending(){
   $('pending-tx').value='';$('pending-tx').closest('details').open=false;
@@ -100,7 +109,7 @@ $('prove').onclick=()=>task(async()=>{
   window.history.replaceState(null,'','/?job='+encodeURIComponent(id));
   await watchProof(id);
 });
-$('read').onclick=()=>task(async()=>{history=null;$('history').hidden=true;parseTceInput(input().url,input().date);if(!input().contract)throw new Error('Informe abaixo o endereço do PublicationRegistry publicado no Remix.');status('Consultando o primeiro registro na blockchain…');renderHistory(await api('/api/publication/read',input()));});
+$('read').onclick=()=>task(async()=>{history=null;$('history').hidden=true;parseTceInput(input().url,input().date);if(!input().contract)throw new Error('Informe abaixo o endereço do PublicationRegistry publicado no Remix.');status('Consultando o primeiro registro na blockchain…');renderHistory(await api('/api/publication/read',input()));$('history').scrollIntoView({block:'center',behavior:'smooth'});});
 $('connect').onclick=()=>task(async()=>{
   const selected=providers[0]||window.ethereum?.providers?.find(p=>p.isMetaMask)||(window.ethereum?.isMetaMask?window.ethereum:null);
   if(!selected)throw new Error('Abra no Chrome/Dia com a extensão MetaMask.');

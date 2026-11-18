@@ -57,7 +57,25 @@ de disponibilidade do arquivo local.
 ```
 
 A leitura retorna a primeira data da URL e edição. Não coleta o PDF novamente e
-não assina transações. `query.getRecord`, `query.getVersion` e
+não assina transações.
+
+- `verification.source: "rpc"`: resposta conferida agora no contrato;
+  `verification.verifiedAt` informa quando essa consulta terminou.
+- `verification.source: "archive"`: o RPC falhou e a resposta usa um primeiro
+  registro confirmado anteriormente. O dossiê precisa pertencer à mesma rede,
+  contrato, URL e edição, com integridade conferida. A interface mostra a origem
+  local e a data da última conferência do índice na rede.
+- Sem resposta do RPC e sem confirmação preservada, a API retorna HTTP 503,
+  com `code: "RPC_UNAVAILABLE"`. Isso não indica ausência de registro.
+- Uma consulta ao calendário pode retornar apenas as fontes já preservadas;
+  nesse caso `verification.partial` é `true`. O link exato do PDF evita essa
+  ambiguidade. O caminho do visualizador `/v/pdf/` identifica o mesmo PDF.
+- Somente leituras RPC permitidas repetem falhas transitórias, até três tentativas.
+  Envios de transação, métodos desconhecidos e lotes contendo escrita não são
+  repetidos automaticamente. Uma reorganização detectada invalida o índice
+  anterior antes da reconstrução, inclusive quando ela não consegue terminar.
+
+`query.getRecord`, `query.getVersion` e
 `query.firstDigestRegisteredAt` preservam os parâmetros para acesso direto ao
 contrato; `hashAlgorithm` informa SHA-256.
 

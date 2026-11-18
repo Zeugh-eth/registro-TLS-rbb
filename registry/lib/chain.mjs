@@ -10,7 +10,11 @@ export const GENESIS = '0x51ced064ee81680acece8a551efbc98a58a72ecd995e27977e60ee
 const networkFile = ROOT + '../operations/networks.json';
 const network = JSON.parse(fs.readFileSync(fs.existsSync(networkFile) ? networkFile : ROOT + '../operations/networks.example.json', 'utf8'));
 
-// Ethers signs locally. Transport is explicit; failed sends never switch routes or retry.
+const READ_RPC_METHODS = new Set(['eth_chainId', 'eth_getBlockByNumber', 'eth_getBlockByHash',
+  'eth_syncing', 'eth_getCode', 'eth_call', 'eth_getLogs', 'eth_getTransactionReceipt',
+  'eth_getTransactionByHash', 'eth_getTransactionCount', 'eth_gasPrice', 'eth_getBalance', 'eth_estimateGas']);
+
+// Ethers signs locally. Only idempotent reads retry; sends never retry or switch routes.
 // Both routes use the same configured testnet RPC. A fresh public clone uses direct RPC.
 export class PiProvider extends JsonRpcProvider {
   constructor({ transport = process.env.RBB_RPC_TRANSPORT || (network.ssh_target ? 'ssh' : 'direct'), fetcher = globalThis.fetch } = {}) {
@@ -20,19 +24,39 @@ export class PiProvider extends JsonRpcProvider {
     this.rpcFetch = fetcher;
   }
   async _send(payload) {
+    const requests = Array.isArray(payload) ? payload : [payload];
+    const readOnly = requests.length > 0 && requests.every(request => READ_RPC_METHODS.has(request.method));
+    const failure = reason => Object.assign(new Error(readOnly
+      ? 'Consulta ao RPC indisponível (' + reason + ').'
+      : 'RPC request failed; outcome may be unknown (' + reason + ').'),
+      { code: readOnly ? 'RPC_UNAVAILABLE' : 'RPC_SEND_UNCERTAIN' });
     if (this.rpcTransport === 'direct') {
-      try {
-        const response = await this.rpcFetch(network.testnet.rpc_url, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload), redirect: 'error', signal: AbortSignal.timeout(30000)
-        });
-        if (!response.ok) throw new Error();
-        const result = await response.json();
-        const values = Array.isArray(result) ? result : [result];
-        if (!values.length || values.some(value => !value || value.jsonrpc !== '2.0' || !Object.hasOwn(value, 'id') ||
-            (!Object.hasOwn(value, 'result') && !Object.hasOwn(value, 'error')))) throw new Error();
-        return values;
-      } catch { throw new Error('Direct RPC request failed; outcome may be unknown'); }
+      for (let attempt = 0; ; attempt++) {
+        let reason = 'conexão interrompida', retryable = true;
+        try {
+          const response = await this.rpcFetch(network.testnet.rpc_url, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload), redirect: 'error', signal: AbortSignal.timeout(readOnly ? 10000 : 30000)
+          });
+          retryable = false;
+          if (!response.ok) {
+            reason = 'HTTP ' + response.status;
+            retryable = [429, 500, 502, 503, 504].includes(response.status);
+            throw new Error();
+          }
+          reason = 'resposta inválida';
+          const result = await response.json();
+          const values = Array.isArray(result) ? result : [result];
+          if (!values.length || values.some(value => !value || value.jsonrpc !== '2.0' || !Object.hasOwn(value, 'id') ||
+              (!Object.hasOwn(value, 'result') && !Object.hasOwn(value, 'error')))) throw new Error();
+          return values;
+        } catch (error) {
+          if (error.name === 'TimeoutError') reason = 'tempo de resposta esgotado';
+          else if (error.cause?.code === 'UND_ERR_SOCKET') reason = 'conexão encerrada pelo servidor';
+          if (!readOnly || !retryable || attempt >= 2) throw failure(reason);
+          await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+        }
+      }
     }
     if (!network.ssh_target) throw new Error('Configure ssh_target in operations/networks.json before using SSH');
     const input = JSON.stringify({ url: network.testnet.rpc_url, payload });
@@ -43,15 +67,15 @@ export class PiProvider extends JsonRpcProvider {
       const child = spawn('ssh', ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
         '-o', 'ConnectTimeout=10', network.ssh_target, 'python3 -'], { env: childEnv });
       let stdout = '';
-      const timer = setTimeout(() => { child.kill(); reject(new Error('RPC timeout')); }, 30000);
+      const timer = setTimeout(() => { child.kill(); reject(failure('tempo de resposta esgotado')); }, 30000);
       child.stdout.on('data', chunk => { stdout += chunk; });
       child.stderr.resume(); // Never expose RPC payloads or SSH diagnostics in browser responses.
-      child.on('error', () => { clearTimeout(timer); reject(new Error('SSH unavailable')); });
+      child.on('error', () => { clearTimeout(timer); reject(failure('SSH indisponível')); });
       child.on('close', code => {
         clearTimeout(timer);
-        if (code !== 0) return reject(new Error('Pi/RPC connection failed'));
+        if (code !== 0) return reject(failure('conexão Pi/RPC indisponível'));
         try { const r = JSON.parse(stdout); resolve(Array.isArray(r) ? r : [r]); }
-        catch { reject(new Error('Invalid RPC response')); }
+        catch { reject(failure('resposta inválida')); }
       });
       child.stdin.on('error', () => {});
       child.stdin.end(script);

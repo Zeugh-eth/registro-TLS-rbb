@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Contract, Interface, getAddress } from 'ethers';
 import { ROOT, PiProvider } from './chain.mjs';
-import { publicationConfig, getJob } from './publication.mjs';
+import { publicationConfig, getJob, readPublication as readLivePublication } from './publication.mjs';
 import { parseTceInput, sha256 } from './tce.mjs';
 import { sourceId, validatePublicationContract } from '../public/publication-wallet.js';
 import { saveJSON } from './publication-batch.mjs';
@@ -179,6 +179,7 @@ export function createDeclarationArchive({ stateRoot = ROOT + 'state', provider:
         // Keep the prior snapshot on disk for audit, but rebuild confirmation from deployment.
         await saveJSON(path.join(directory, 'before-reorg.json'), index);
         index = empty();
+        await saveJSON(indexFile, index); // Known orphaned records must not survive a failed rebuild.
       }
     }
     const batches = await localBatches(), topic = new Interface(artifact.abi).getEvent('PublicationObserved').topicHash;
@@ -243,6 +244,46 @@ export function createDeclarationArchive({ stateRoot = ROOT + 'state', provider:
     return JSON.parse(bytes);
   }
 
+  async function readPublication(input) {
+    const parsed = parseTceInput(input.url, input.date), target = getAddress(input.contract.trim());
+    const config = await getConfig();
+    try {
+      return await readLivePublication(input, { provider: ensureProvider(), chainConfig: config });
+    } catch (error) {
+      // Validation failures are not outages. Never mask a wrong chain, contract or input.
+      if (error.code !== 'RPC_UNAVAILABLE') throw error;
+      const index = await readIndex(), records = [];
+      if (index.contract && (getAddress(index.contract) !== target || index.chainId !== config.chainId || index.genesis !== config.genesis))
+        throw new Error('O arquivo preservado pertence a outro contrato ou rede.');
+      const candidates = index.records.filter(item => item.kind === 'first-registration' &&
+        item.source.editionDate === parsed.date && (!parsed.canonicalURL || item.source.url === parsed.canonicalURL));
+      for (const item of candidates) {
+        const record = await detail(item.id);
+        if (record.chain.id !== config.chainId || record.chain.genesis !== config.genesis || getAddress(record.chain.contract) !== target ||
+            getAddress(record.chain.writer) !== getAddress(config.writer) || getAddress(record.chain.verifier) !== getAddress(config.verifier) ||
+            record.transaction.status !== 1 || record.receipt.status !== '0x1' || record.kind !== 'first-registration' ||
+            record.source.sourceId !== sourceId(record.source.url) || record.source.editionDateCode !== parsed.dateCode ||
+            record.source.editionDate !== parsed.date || (parsed.canonicalURL && record.source.url !== parsed.canonicalURL) ||
+            record.dates.firstRegisteredAtISO !== record.dates.includedAtISO)
+          throw new Error('Dossiê preservado não corresponde ao primeiro registro solicitado.');
+        records.push({ sourceURL: record.source.url, editionDate: parsed.date,
+          registeredAt: record.dates.firstRegisteredAt, registeredAtISO: record.dates.firstRegisteredAtISO,
+          observedAt: record.attestation.claim.observedAt, observedAtISO: record.dates.observedAtISO,
+          publicationDateCode: record.attestation.claim.publicationDate,
+          documentHash: record.hashes.document, evidenceHash: record.hashes.evidence,
+          evidenceAvailable: record.evidence.available, transactionHash: record.id,
+          blockNumber: record.transaction.blockNumber, declarationURL: '/declaracoes#' + record.id });
+      }
+      if (!records.length) throw Object.assign(new Error('Não foi possível consultar a RBB e não há confirmação preservada para este link e data. Isso não significa que o documento não foi registrado. Tente novamente.'), { code: 'RPC_UNAVAILABLE' });
+      records.sort((a, b) => a.registeredAt - b.registeredAt);
+      return { schema: 'rbb-publication-history/v1', chainId: config.chainId, contract: target, algorithm: 'SHA-256',
+        registered: true, editionDate: parsed.date, records, firstRegisteredAtISO: records[0].registeredAtISO,
+        sourceFetched: false, readAt: new Date().toISOString(),
+        verification: { source: 'archive', verifiedAt: index.verifiedAt, networkAvailable: false,
+          partial: !parsed.canonicalURL, reason: error.message } };
+    }
+  }
+
   async function attachment(id, part) {
     const record = await detail(id);
     const item = record.evidence.parts.find(item => item.file === part);
@@ -266,7 +307,7 @@ export function createDeclarationArchive({ stateRoot = ROOT + 'state', provider:
     return '\uFEFF' + rows.map(row => row.map(value => '"' + String(value ?? '').replaceAll('"', '""') + '"').join(',')).join('\r\n') + '\r\n';
   }
 
-  return { sync, list, detail, attachment, exportJSON, exportCSV,
+  return { sync, list, detail, readPublication, attachment, exportJSON, exportCSV,
     start() { if (timer) return; void sync().catch(() => {}); timer = setInterval(() => void sync().catch(() => {}), 15000); timer.unref(); },
     stop() { clearInterval(timer); timer = null; if (!injectedProvider) provider?.destroy(); } };
 }

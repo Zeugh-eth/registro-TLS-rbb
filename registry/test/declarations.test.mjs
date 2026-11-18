@@ -10,6 +10,7 @@ import { compile } from '../scripts/compile.mjs';
 import { createDeclarationArchive } from '../lib/declarations.mjs';
 import { createServer } from '../server.mjs';
 import { sha256 } from '../lib/tce.mjs';
+import { PiProvider } from '../lib/chain.mjs';
 import { saveJSON } from '../lib/publication-batch.mjs';
 import { sourceId, publicationDomain, publicationTypes } from '../public/publication-wallet.js';
 
@@ -95,6 +96,40 @@ test('persistent declaration archive validates real receipts, preserves first da
       assert.equal((await fetch(base + '/state/secrets/batch-writer.key')).status, 404);
     } finally { await new Promise(resolve => server.close(resolve)); }
   });
+  await t.test('link/date lookup survives an unavailable RPC with explicit archive provenance and no false negatives', async () => {
+    const rpc = new PiProvider({ transport: 'direct', fetcher: async () => { throw new TypeError('fetch failed'); } });
+    const offline = createDeclarationArchive({ stateRoot, provider: rpc, artifact, getConfig: async () => config });
+    const server = createServer({ archive: offline }); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const query = body => fetch(base + '/api/publication/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const input = { url: sourceURL.replace('/pdf/', '/v/pdf/'), date: '2026-11-14', contract: contract.target };
+    try {
+      const response = await query(input), found = await response.json();
+      assert.equal(response.status, 200, JSON.stringify(found));
+      assert.equal(found.registered, true); assert.equal(found.verification.source, 'archive');
+      assert.equal(found.firstRegisteredAtISO, original.dates.firstRegisteredAtISO);
+      assert.equal(found.records[0].documentHash, original.hashes.document);
+      assert.equal(found.records[0].transactionHash, firstHash);
+      assert.equal(found.records[0].sourceURL, sourceURL); assert.equal(found.sourceFetched, false);
+      assert.ok(found.verification.verifiedAt);
+      const absent = await query({ ...input, url: 'https://doe.tce.sp.gov.br/', date: '2026-11-13' });
+      assert.equal(absent.status, 503); assert.equal((await absent.json()).code, 'RPC_UNAVAILABLE');
+      const wrongContract = await query({ ...input, contract: attester.address });
+      assert.notEqual(wrongContract.status, 200);
+      const wrongDate = await query({ ...input, date: '2026-11-13' });
+      assert.equal(wrongDate.status, 400);
+      const file = path.join(stateRoot, 'declarations', 'records', firstHash + '.json'), bytes = await fs.readFile(file);
+      try { await fs.writeFile(file, '{}'); assert.notEqual((await query(input)).status, 200); }
+      finally { await fs.writeFile(file, bytes); }
+    } finally { await new Promise(resolve => server.close(resolve)); rpc.destroy(); }
+  });
+  await t.test('link/date live lookup reports a current network check', async () => {
+    const result = await archive.readPublication({ url: sourceURL, date: '2026-11-14', contract: contract.target });
+    assert.equal(result.verification.source, 'rpc'); assert.equal(result.registered, true);
+    assert.equal(result.firstRegisteredAtISO, original.dates.firstRegisteredAtISO);
+    const absent = await archive.readPublication({ url: 'https://doe.tce.sp.gov.br/', date: '2026-11-13', contract: contract.target });
+    assert.equal(absent.registered, false); assert.equal(absent.verification.source, 'rpc');
+  });
   await t.test('tampered dossiers and files cannot be downloaded as authentic evidence', async () => {
     const file = path.join(stateRoot, 'declarations', 'records', firstHash + '.json'), bytes = await fs.readFile(file);
     await fs.writeFile(file, '{}'); await assert.rejects(archive.detail(firstHash), /alterado/); await fs.writeFile(file, bytes);
@@ -117,6 +152,14 @@ test('persistent declaration archive validates real receipts, preserves first da
   });
   await t.test('a changed canonical chain rebuilds the index instead of preserving orphan confirmations', async () => {
     await provider.send('evm_revert', [snapshot]); await provider.send('evm_mine', []);
+    const send = provider.send.bind(provider);
+    provider.send = async (method, params) => {
+      if (method === 'eth_getLogs') throw new Error('RPC lost during reorg rebuild');
+      return send(method, params);
+    };
+    await assert.rejects(archive.sync(), /reorg rebuild/);
+    assert.equal((await archive.list()).records.length, 0, 'known-orphaned confirmations must be invalidated even if rebuilding fails');
+    provider.send = send;
     await archive.sync(); const list = await archive.list(); assert.equal(list.records.length, 1); assert.equal(list.records[0].id, firstHash);
     assert.equal((await archive.detail(firstHash)).dates.firstRegisteredAtISO, original.dates.firstRegisteredAtISO);
   });

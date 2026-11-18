@@ -2,7 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ROOT, WRITER, CHAIN_ID, GENESIS } from './lib/chain.mjs';
-import { publicationConfig, inspectLink, startProof, getJob, attestEvidence, readPublication, listPublications, downloadEvidence } from './lib/publication.mjs';
+import { publicationConfig, inspectLink, startProof, getJob, attestEvidence, listPublications, downloadEvidence } from './lib/publication.mjs';
 
 import { createDeclarationArchive } from './lib/declarations.mjs';
 
@@ -83,7 +83,7 @@ export function createServer({ archive = createDeclarationArchive() } = {}) {
         return reply(200,await downloadEvidence(hash));
       }
       const actions = {'/api/publication/inspect':inspectLink,'/api/publication/prove':startProof,
-        '/api/publication/attest':attestEvidence,'/api/publication/read':readPublication,'/api/publication/list':listPublications};
+        '/api/publication/attest':attestEvidence,'/api/publication/read':archive.readPublication,'/api/publication/list':listPublications};
       if (req.method === 'POST' && Object.hasOwn(actions,url.pathname)) {
         if (!(req.headers['content-type'] || '').startsWith('application/json')) return reply(415,{error:'Envie JSON.'});
         let raw = ''; for await (const chunk of req) { raw += chunk.toString(); if (Buffer.byteLength(raw)>8192) throw new Error('Requisição excessiva.'); }
@@ -91,7 +91,7 @@ export function createServer({ archive = createDeclarationArchive() } = {}) {
         if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Entrada inválida.');
         return reply(200,await actions[url.pathname](input));
       }
-    } catch (error) { return reply(400,{error:error.code === 'ENOENT' ? 'Prova ou configuração não encontrada.' : String(error.message).slice(0,300)}); }
+    } catch (error) { return reply(error.code === 'RPC_UNAVAILABLE' ? 503 : 400,{code:error.code === 'RPC_UNAVAILABLE' ? error.code : undefined,error:error.code === 'ENOENT' ? 'Prova ou configuração não encontrada.' : String(error.message).slice(0,300)}); }
     // Blockchain transaction signing and broadcasting are exclusively handled by the browser wallet.
     if (req.method !== 'GET') return reply(405, { error: 'Use MetaMask to sign in your browser.' });
     return reply(404, { error: 'Não encontrado.' });

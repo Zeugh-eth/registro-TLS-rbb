@@ -118,7 +118,7 @@ function renderDetail(record) {
   const check = element('button', 'Consultar este link + data na RBB', 'secondary'), answer = element('p'); answer.setAttribute('role', 'status');
   check.onclick = async () => { check.disabled = true; answer.className = ''; answer.textContent = 'Consultando o contrato…';
     try { const result = await api('/api/publication/read', record.query.application); if (!result.registered) throw new Error('O contrato não retornou o registro.');
-      answer.className = 'query-result'; answer.textContent = 'Primeiro registro retornado: ' + brt(result.firstRegisteredAtISO) + '\n' + (result.firstRegisteredAtISO === record.dates.firstRegisteredAtISO ? 'A data coincide com o dossiê preservado.' : 'A data difere do dossiê; confira a rede e a sincronização.') + '\nConsulta somente à blockchain; o PDF não foi buscado novamente.';
+      answer.className = 'query-result'; answer.textContent = 'Primeiro registro retornado: ' + brt(result.firstRegisteredAtISO) + '\n' + (result.firstRegisteredAtISO === record.dates.firstRegisteredAtISO ? 'A data coincide com o dossiê preservado.' : 'A data difere do dossiê; confira a rede e a sincronização.') + '\n' + (result.verification?.source === 'archive' ? 'A RBB está indisponível nesta consulta. Resposta do acervo local, conferido na rede em ' + brt(result.verification.verifiedAt) + '.' : 'Conferido agora no contrato da RBB. O PDF não foi buscado novamente.');
     } catch (cause) { answer.className = 'notice error-notice'; answer.textContent = cause.message; } finally { check.disabled = false; } };
   container.append(check, answer);
   const query = element('details'); query.append(element('summary', 'Metadados para integrar a consulta em outra aplicação'));

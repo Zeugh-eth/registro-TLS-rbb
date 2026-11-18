@@ -229,9 +229,10 @@ export async function readPublication(input, dependencies = {}) {
       evidenceAvailable:existsSync(state+'evidence/'+record.evidenceHash.slice(2)+'/manifest.json')});
   }
   records.sort((a,b)=>a.registeredAt-b.registeredAt);
+  const readAt = new Date().toISOString();
   return {schema:'rbb-publication-history/v1',chainId:config.chainId,contract:target,algorithm:'SHA-256',
     registered:records.length>0,editionDate:parsed.date,records,firstRegisteredAtISO:records[0]?.registeredAtISO || null,
-    sourceFetched:false,readAt:new Date().toISOString()};
+    sourceFetched:false,readAt,verification:{source:'rpc',verifiedAt:readAt,networkAvailable:true,partial:false}};
 }
 
 export async function listPublications(input, dependencies = {}) {
