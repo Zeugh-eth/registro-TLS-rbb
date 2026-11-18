@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>proof of publication via a relayer · apolinar.io</title>
+<meta name="description" content="How apolinar.io proves a PDF was online at a URL at a given time: server signatures (RFC 9421) anchored on Rede Blockchain Brasil.">
+<style>
+:root {
+  --ink: #111;
+  --muted: #777;
+  --bg: #f6f6f6;
+  --hi: #FFFB05;
+  --white: #fff;
+  --ok: #0a7d32;
+  --bad: #c0151b;
+  --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: 'Courier New', monospace;
+  --border: 2px solid var(--ink);
+  --shadow: 0.3ex 0.3ex var(--ink);
+  --shadow-lg: 0.5ex 0.5ex var(--ink);
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); overflow-y: scroll; }
+body { margin: 0 auto; max-width: 60em; padding: 2em 16px 4em; color: var(--ink); font: 100%/1.45 var(--sans); }
+::selection { background: var(--hi); }
+a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--muted); word-break: break-all; }
+a:hover { color: var(--ink); background: var(--hi); border-bottom-color: var(--ink); }
+h1 { font-size: clamp(2em, 6vw, 3.2em); line-height: 1.02; letter-spacing: -0.02em; margin: 0.4em 0 0.3em; }
+h2 { font-size: 1.6em; margin: 2.4em 0 0.4em; letter-spacing: -0.01em; }
+h3 { font-size: 1.05em; margin: 0 0 0.3em; }
+p { margin: 0 0 0.8em; }
+mark { background: var(--hi); color: var(--ink); padding: 0 0.15em; }
+code, pre, .mono { font-family: var(--mono); }
+code { font-size: 0.92em; background: var(--white); border: 1px solid var(--ink); padding: 0 0.3em; word-break: break-all; }
+.meta { font-family: var(--mono); font-size: 0.8em; letter-spacing: 0.05em; color: var(--muted); text-transform: lowercase; }
+.lede { font-size: 1.2em; max-width: 38em; }
+.box { background: var(--white); border: var(--border); box-shadow: var(--shadow-lg); padding: 1.2em 1.3em; }
+.claim { font-size: 1.15em; margin-top: 1.4em; }
+.claim strong { background: var(--hi); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15em, 1fr)); gap: 1em; }
+.card { background: var(--white); border: var(--border); box-shadow: var(--shadow); padding: 1em 1.1em; transition: transform 0.15s ease, background 0.15s ease; }
+.card:hover { transform: translateX(5px); }
+.card p { color: #333; font-size: 0.95em; margin: 0; }
+.card .meta { display: block; margin-bottom: 0.4em; }
+.card.new { background: var(--hi); }
+.figure { background: var(--white); border: var(--border); box-shadow: var(--shadow-lg); padding: 0.6em; overflow-x: auto; }
+.figure svg { display: block; width: 100%; min-width: 640px; height: auto; }
+svg text { font-family: var(--sans); fill: var(--ink); }
+svg .m { font-family: var(--mono); }
+pre { background: var(--white); border: var(--border); box-shadow: var(--shadow); padding: 1em; overflow-x: auto; font-size: 0.85em; line-height: 1.55; margin: 0; white-space: pre; }
+.lines { display: grid; gap: 0.6em; }
+.line { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); border: var(--border); background: var(--white); box-shadow: var(--shadow); }
+.line > code { border: none; border-right: var(--border); padding: 0.8em; display: block; font-size: 0.85em; white-space: pre-wrap; }
+.line div { padding: 0.8em; font-size: 0.95em; }
+.line b { display: block; }
+@media (max-width: 640px) { .line { grid-template-columns: 1fr; } .line code { border-right: none; border-bottom: var(--border); } }
+table { width: 100%; border-collapse: collapse; background: var(--white); border: var(--border); box-shadow: var(--shadow); font-size: 0.95em; }
+th, td { text-align: left; padding: 0.6em 0.8em; border-bottom: 1px solid var(--ink); vertical-align: top; }
+th { font-family: var(--mono); font-weight: normal; font-size: 0.8em; letter-spacing: 0.05em; color: var(--muted); }
+tr:last-child td { border-bottom: none; }
+button { font: inherit; font-weight: bold; background: var(--ink); color: var(--white); border: var(--border); box-shadow: var(--shadow); padding: 0.55em 1.1em; cursor: pointer; transition: transform 0.15s ease; }
+button:hover, button:focus-visible { background: var(--hi); color: var(--ink); transform: translateX(3px); outline: none; }
+button:disabled { opacity: 0.5; cursor: wait; }
+.row { display: flex; flex-wrap: wrap; gap: 0.8em; align-items: center; margin: 1em 0; }
+.checks { list-style: none; padding: 0; margin: 1em 0 0; display: grid; gap: 0.4em; }
+.checks li { display: flex; gap: 0.6em; align-items: baseline; }
+.checks .s { font-family: var(--mono); font-weight: bold; min-width: 1.4em; }
+.checks .ok .s { color: var(--ok); }
+.checks .bad .s { color: var(--bad); }
+.checks .wait .s { color: var(--muted); }
+.checks small { color: var(--muted); display: block; word-break: break-all; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.3em 1em; font-size: 0.95em; margin: 0.8em 0 0; }
+.kv dt { font-family: var(--mono); font-size: 0.85em; color: var(--muted); letter-spacing: 0.05em; padding-top: 0.1em; }
+.kv dd { margin: 0; word-break: break-all; }
+ol.steps { padding: 0; list-style: none; counter-reset: s; display: grid; gap: 0.6em; }
+ol.steps li { counter-increment: s; background: var(--white); border: var(--border); box-shadow: var(--shadow); padding: 0.8em 1em 0.8em 3.2em; position: relative; }
+ol.steps li::before { content: counter(s); position: absolute; left: 0.8em; top: 0.75em; width: 1.6em; height: 1.6em; display: grid; place-items: center; background: var(--hi); border: var(--border); font-weight: bold; font-size: 0.85em; }
+ol.steps li span { display: block; color: #444; font-size: 0.95em; }
+footer { margin-top: 4em; padding-top: 1em; border-top: var(--border); }
+</style>
+</head>
+<body>
+<p class="meta"><a href="https://apolinar.io/">apolinar.io</a> / <a href="./">publicacoes</a> / relayer variant</p>
+<h1>the same proof, recorded through a permissioned relayer</h1>
+<p class="lede">Each time a PDF here is downloaded, the server signs it together with a fresh block hash from <mark>Rede Blockchain Brasil</mark>. The observer has no RBB wallet of its own: it sends the record to a permissioned service with an API key, and that service writes it to the RBB. Two blocks still fix when it happened. <a href="./">See the direct version.</a></p>
+
+<div class="box claim" id="latest">
+  <span class="meta">latest observation</span>
+  <p id="latest-claim">Loading the latest observation…</p>
+</div>
+
+<h2>three signatures, three jobs</h2>
+<div class="grid">
+  <div class="card"><span class="meta">already exists</span><h3>the pdf's own signature</h3><p>PAdES / ICP-Brasil. Shows <b>who wrote</b> the document and that it wasn't altered. Says nothing about where or when it was published.</p></div>
+  <div class="card"><span class="meta">already exists</span><h3>the https padlock</h3><p>Convinces <b>your browser, right now</b>, that it's talking to the domain. It can't be shown to anyone later, because HTTPS doesn't sign what it delivers.</p></div>
+  <div class="card new"><span class="meta">what we add</span><h3>the publication signature</h3><p>The domain signs <b>this exact file at this URL</b>, after a given block. Anyone can save it and check it years later without contacting the server.</p></div>
+</div>
+
+<h2>the flow</h2>
+<p>Set up once, then the same six steps for every observation. Steps 5 and 6 replace the observer writing to the RBB directly.</p>
+<div class="figure">
+  <svg viewBox="0 0 960 760" role="img" aria-label="Sequence diagram: RBB, relayer, observer and server">
+    <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker></defs>
+    <rect x="8" y="80" width="944" height="160" fill="#f6f6f6"/>
+    <rect x="8" y="254" width="944" height="494" fill="#f6f6f6"/>
+    <text x="20" y="102" class="m" font-size="12" fill="#777">once</text>
+    <text x="20" y="276" class="m" font-size="12" fill="#777">every observation</text>
+    <rect x="73" y="23" width="160" height="40" fill="#111"/><rect x="70" y="20" width="160" height="40" fill="#fff" stroke="#111" stroke-width="2"/><text x="150" y="45" text-anchor="middle" font-size="15" font-weight="bold">RBB (testnet)</text><rect x="303" y="23" width="160" height="40" fill="#111"/><rect x="300" y="20" width="160" height="40" fill="#fff" stroke="#111" stroke-width="2"/><text x="380" y="45" text-anchor="middle" font-size="15" font-weight="bold">relayer</text><rect x="533" y="23" width="160" height="40" fill="#111"/><rect x="530" y="20" width="160" height="40" fill="#fff" stroke="#111" stroke-width="2"/><text x="610" y="45" text-anchor="middle" font-size="15" font-weight="bold">observer</text><rect x="763" y="23" width="160" height="40" fill="#111"/><rect x="760" y="20" width="160" height="40" fill="#FFFB05" stroke="#111" stroke-width="2"/><text x="840" y="45" text-anchor="middle" font-size="15" font-weight="bold">server</text>
+    <text x="380" y="78" text-anchor="middle" class="m" font-size="11" fill="#777">permissioned wallet</text>
+    <line x1="150" y1="62" x2="150" y2="748" stroke="#111" stroke-dasharray="3 5"/><line x1="380" y1="62" x2="380" y2="748" stroke="#111" stroke-dasharray="3 5"/><line x1="610" y1="62" x2="610" y2="748" stroke="#111" stroke-dasharray="3 5"/><line x1="840" y1="62" x2="840" y2="748" stroke="#111" stroke-dasharray="3 5"/>
+
+    <rect x="745" y="96" width="190" height="46" fill="#fff" stroke="#111" stroke-width="2"/>
+    <text x="840" y="115" text-anchor="middle" font-size="13">generates an Ed25519 key</text>
+    <text x="840" y="133" text-anchor="middle" font-size="13">publishes the public half</text>
+    <line x1="606" y1="180" x2="384" y2="180" stroke="#111" stroke-width="2" marker-end="url(#arr)"/><text x="495" y="170" text-anchor="middle" font-size="13">registers the key · API key</text>
+    <line x1="376" y1="220" x2="154" y2="220" stroke="#111" stroke-width="2" marker-end="url(#arr)"/><text x="265" y="210" text-anchor="middle" font-size="13">registerKey · <tspan font-weight="bold">block K</tspan></text>
+    <circle cx="150" cy="220" r="6" fill="#111"/>
+
+    <circle cx="150" cy="300" r="7" fill="#111"/>
+    <text x="164" y="296" font-size="12" font-weight="bold">block N</text>
+    <line x1="163" y1="328" x2="606" y2="328" stroke="#111" stroke-width="2" marker-end="url(#arr)"/><text x="495" y="318" text-anchor="middle" font-size="13">newest block hash = the nonce</text>
+    <rect x="139" y="317" width="22" height="22" fill="#FFFB05" stroke="#111" stroke-width="2"/><text x="150" y="332" text-anchor="middle" font-size="12" font-weight="bold">1</text>
+
+    <line x1="623" y1="396" x2="836" y2="396" stroke="#111" stroke-width="2" marker-end="url(#arr)"/><text x="731" y="386" text-anchor="middle" font-size="13">GET the PDF, with the nonce</text>
+    <rect x="599" y="385" width="22" height="22" fill="#FFFB05" stroke="#111" stroke-width="2"/><text x="610" y="400" text-anchor="middle" font-size="12" font-weight="bold">2</text>
+
+    <rect x="745" y="444" width="190" height="56" fill="#fff" stroke="#111" stroke-width="2"/>
+    <text x="840" y="467" text-anchor="middle" font-size="13" font-weight="bold">signs one short text</text>
+    <text x="840" y="487" text-anchor="middle" font-size="11" class="m">domain·path·hash·nonce</text>
+    <rect x="734" y="461" width="22" height="22" fill="#FFFB05" stroke="#111" stroke-width="2"/><text x="745" y="476" text-anchor="middle" font-size="12" font-weight="bold">3</text>
+
+    <line x1="827" y1="552" x2="614" y2="552" stroke="#111" stroke-width="2" marker-end="url(#arr)"/><text x="719" y="542" text-anchor="middle" font-size="13">PDF + 3 signature headers</text>
+    <rect x="829" y="541" width="22" height="22" fill="#FFFB05" stroke="#111" stroke-width="2"/><text x="840" y="556" text-anchor="middle" font-size="12" font-weight="bold">4</text>
+
+    <line x1="597" y1="620" x2="384" y2="620" stroke="#111" stroke-width="2" marker-end="url(#arr)"/><text x="489" y="610" text-anchor="middle" font-size="13">sends the record · API key</text>
+    <rect x="599" y="609" width="22" height="22" fill="#FFFB05" stroke="#111" stroke-width="2"/><text x="610" y="624" text-anchor="middle" font-size="12" font-weight="bold">5</text>
+
+    <line x1="367" y1="684" x2="154" y2="684" stroke="#111" stroke-width="2" marker-end="url(#arr)"/><text x="259" y="674" text-anchor="middle" font-size="13">transaction · checks N</text>
+    <rect x="369" y="673" width="22" height="22" fill="#FFFB05" stroke="#111" stroke-width="2"/><text x="380" y="688" text-anchor="middle" font-size="12" font-weight="bold">6</text>
+
+    <circle cx="150" cy="716" r="7" fill="#111"/>
+    <text x="164" y="720" font-size="12" font-weight="bold">block M</text>
+
+    <rect x="104" y="300" width="14" height="416" fill="#FFFB05" stroke="#111" stroke-width="2"/>
+    <text x="90" y="508" text-anchor="middle" font-size="12" font-weight="bold" transform="rotate(-90 90 508)">proven window: between N and M</text>
+  </svg>
+</div>
+
+<h2>what the relayer can and can't do</h2>
+<p>The relayer holds the only wallet allowed to write. It never touches the server's key, so it can't change what the proof says.</p>
+<table>
+  <thead><tr><th>the relayer could…</th><th>result</th></tr></thead>
+  <tbody>
+    <tr><td>forge a PDF or change its content</td><td>impossible: the server's Ed25519 signature would break</td></tr>
+    <tr><td>backdate an observation</td><td>impossible: the contract checks <code>blockhash(N)</code>, N must be at most 256 blocks old, and block M's time is set by the chain</td></tr>
+    <tr><td>alter evidence after recording</td><td>impossible: <code>evidenceHash</code> is on the RBB</td></tr>
+    <tr><td>refuse or delay a record</td><td>possible: the observation is missing or fails the 256-block window; nothing false is recorded</td></tr>
+    <tr><td>register its own key as a domain's key</td><td><mark>detectable</mark>: key registrations are public on the RBB, and the verifier checks the key published at <code>/.well-known/</code>. That check covers only the present; to stay verifiable after the domain rotates its key, the domain signs its key file with its ICP-Brasil certificate (e-CNPJ)</td></tr>
+    <tr><td>hide which observer recorded</td><td>on the RBB every record comes from the relayer's wallet; observers are known only to the relayer</td></tr>
+  </tbody>
+</table>
+
+<h2>what the server signs</h2>
+<p>The signature uses the HTTP Message Signatures standard (RFC 9421). It goes on the server's <b>response</b>; the request only carries the nonce. The signed text is four lines:</p>
+<div class="lines">
+  <div class="line"><code>"@authority";req: apolinar.io</code><div><b>domain</b>which site served it</div></div>
+  <div class="line"><code>"@path";req: /publicacoes/diario-teste.pdf</code><div><b>address</b>which URL on that site</div></div>
+  <div class="line"><code>"content-digest": sha-256=:VuSgsA9HJKmu4adIXgxJv5IKFYxxUooMhiBqR0IqZEQ=:</code><div><b>pdf hash</b>change one byte and it no longer matches</div></div>
+  <div class="line"><code>"@signature-params": ("@authority";req "@path";req "content-digest");created=…;nonce="0x…";keyid="apolinar-2026-1";alg="ed25519"</code><div><b>nonce + key</b>the nonce is block N's hash, so the signature can't predate N. <code>created</code> is the server's clock and is ignored.</div></div>
+</div>
+
+<div class="box" style="margin-top:1.6em">
+  <span class="meta">try it live</span>
+  <h3>ask the server for a signed copy right now</h3>
+  <p>Your browser sends a random nonce, receives the PDF with its signature, and checks it against the key at <a href="/.well-known/publication-key.json">/.well-known/publication-key.json</a>. Real observations use an RBB block hash as the nonce. An HTTPS page can't reach the RBB's plain-HTTP RPC, so this demo uses a random one.</p>
+  <div class="row"><button id="live-btn" type="button">fetch &amp; verify</button><span class="meta" id="live-status"></span></div>
+  <ul class="checks" id="live-checks"></ul>
+</div>
+
+<h2>what goes on the rbb</h2>
+<p>Only fingerprints and identifiers go on-chain, a few hundred bytes per observation. The PDF and the signed response stay here, in <a href="evidencias/index.json">evidencias/</a>.</p>
+<table>
+  <thead><tr><th>field</th><th>what it is</th></tr></thead>
+  <tbody>
+    <tr><td><code>sourceURL</code></td><td>the observed URL</td></tr>
+    <tr><td><code>documentHash</code></td><td>SHA-256 of the PDF</td></tr>
+    <tr><td><code>evidenceHash</code></td><td>SHA-256 of <code>bundle.json</code>: request, signature headers, key and block N</td></tr>
+    <tr><td><code>nonceBlockNumber</code>, <code>nonceBlockHash</code></td><td>block N. The contract checks <code>blockhash(N)</code> when recording, so the nonce must be at most 256 blocks (~17 min) old</td></tr>
+    <tr><td><code>keyFingerprint</code></td><td>which apolinar.io key signed; registered once, before any observation</td></tr>
+    <tr><td><code>registeredAt</code></td><td>block M's timestamp, set by the chain</td></tr>
+  </tbody>
+</table>
+
+<h2>check an observation yourself</h2>
+<div class="box">
+  <span class="meta">in your browser</span>
+  <p>Downloads the evidence of the latest observation and checks it: signature, hashes and key, then the RBB records (block N, the transaction, its event, block M and the key registration) whenever this page has an RBB connection.</p>
+  <div class="row"><button id="ev-btn" type="button">verify the latest evidence</button><span class="meta" id="ev-status"></span></div>
+  <ul class="checks" id="ev-checks"></ul>
+</div>
+<p style="margin-top:1.4em">For the full check, including the RBB, run the verifier from <code>registro-TLS-rbb</code>. It reads the evidence from this site and confirms block N, the transaction, the event and the key registration on the RBB testnet:</p>
+<pre id="cli">node scripts/signed-verify.mjs https://apolinar.io/publicacoes/evidencias/&lt;hash&gt;/</pre>
+<ol class="steps" style="margin-top:1.2em">
+  <li>the key belongs to the domain<span>its fingerprint was registered on the RBB before the observation, and it's still published at /.well-known/</span></li>
+  <li>the signature is genuine<span>rebuild the four lines, verify them with Ed25519</span></li>
+  <li>made after block N<span>the signed nonce equals block N's hash on the RBB</span></li>
+  <li>recorded no later than block M<span>the transaction's event carries this exact evidence hash</span></li>
+  <li>same document<span>SHA-256 of the PDF equals the signed hash; the PDF's own signature shows the author</span></li>
+</ol>
+
+<h2>what the server can't fake</h2>
+<table>
+  <thead><tr><th>attempt</th><th>result</th></tr></thead>
+  <tbody>
+    <tr><td>set its clock wrong</td><td>no effect: time comes from blocks N and M</td></tr>
+    <tr><td>sign in advance</td><td>impossible: it would need block N's hash before the block existed</td></tr>
+    <tr><td>change a file or signature later</td><td>impossible: the evidence hash is on the RBB</td></tr>
+    <tr><td>forge past proofs after a key leak</td><td>impossible: nothing can be recorded in a block that's already in the past</td></tr>
+    <tr><td>serve different files to different people</td><td>exposed: two signed responses with different hashes for one URL are public proof</td></tr>
+    <tr><td>serve the file only to the observer</td><td>mitigated by several independent observers the server can't single out</td></tr>
+  </tbody>
+</table>
+<p style="margin-top:1em">Each observation is a sample: it proves the URL was online at that moment, not continuously between samples.</p>
+
+<h2>all observations</h2>
+<table id="all"><thead><tr><th>window (utc)</th><th>pdf sha-256</th><th>evidence</th></tr></thead><tbody><tr><td colspan="3">Loading…</td></tr></tbody></table>
+
+<footer>
+  <dl class="kv">
+    <dt>network</dt><dd id="cfg-network">RBB</dd>
+    <dt>contract</dt><dd><code id="cfg-contract"></code> (SignedPublicationRegistry)</dd>
+    <dt>writer</dt><dd><code id="cfg-writer"></code></dd>
+    <dt>standards</dt><dd>RFC 9421 HTTP Message Signatures · RFC 9530 Digest Fields · Ed25519</dd>
+  </dl>
+</footer>
+
+<script type="module">
+const COMPONENTS = '("@authority";req "@path";req "content-digest")';
+const CFG = await fetch('config.json', { cache: 'no-store' }).then(r => r.json());
+const DOC = CFG.sampleURL;
+const KEYS = new URL('/.well-known/publication-key.json', DOC).href;
+const CONTRACT = CFG.contract;
+const RPC = new URL(CFG.rpc, location.href).href;
+const enc = new TextEncoder();
+const hex = buf => '0x' + [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const short = h => h ? h.slice(0, 10) + '…' + h.slice(-6) : '';
+const when = iso => iso ? iso.replace('T', ' ').replace('.000Z', '') : '—';
+
+function parseInput(value) {
+  const m = /^sig1=(\([^()]*\))((?:;[a-z]+=(?:"[^"\\]*"|\d+))*)$/.exec(value || '');
+  if (!m) throw new Error('bad Signature-Input');
+  const params = {};
+  for (const [, k, t, n] of m[2].matchAll(/;([a-z]+)=(?:"([^"\\]*)"|(\d+))/g)) params[k] = t ?? Number(n);
+  return { components: m[1], params, serialized: m[1] + m[2] };
+}
+const base = (authority, path, digest, serialized) =>
+  `"@authority";req: ${authority}\n"@path";req: ${path}\n"content-digest": ${digest}\n"@signature-params": ${serialized}`;
+
+async function ed25519Verify(jwk, message, signature) {
+  const key = await crypto.subtle.importKey('jwk', { kty: 'OKP', crv: 'Ed25519', x: jwk.x }, { name: 'Ed25519' }, false, ['verify']);
+  return crypto.subtle.verify({ name: 'Ed25519' }, key, signature, enc.encode(message));
+}
+
+function checklist(el) {
+  el.innerHTML = '';
+  return (label, state, detail = '') => {
+    const li = document.createElement('li');
+    li.className = state;
+    li.innerHTML = `<span class="s">${state === 'ok' ? '✓' : state === 'bad' ? '✗' : '…'}</span><span>${esc(label)}${detail ? `<small>${esc(detail)}</small>` : ''}</span>`;
+    el.append(li);
+  };
+}
+
+async function rbb(method, params) {
+  const r = await fetch(RPC, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+  const body = await r.json();
+  if (!r.ok || body.error) throw new Error(body.error?.message || 'rpc ' + r.status);
+  return body.result;
+}
+
+async function chainChecks(add, bundle, anchor, evidenceHash) {
+  const { ethers } = await import('./verificar/ethers.min.js');
+  if (Number(BigInt(await rbb('eth_chainId', []))) !== CFG.chainId) throw new Error('wrong chain');
+  const iface = new ethers.Interface([
+    'event ObservationRecorded(bytes32 indexed sourceId, bytes32 indexed documentHash, bytes32 indexed evidenceHash, uint64 registeredAt, uint64 nonceBlockNumber, bytes32 nonceBlockHash, bytes32 keyFingerprint, uint256 index, string sourceURL)',
+    'function evidenceRegisteredAt(bytes32) view returns (uint64)',
+    'function keyRegisteredAt(bytes32, bytes32) view returns (uint64)'
+  ]);
+  const call = async (fn, args) => iface.decodeFunctionResult(fn, await rbb('eth_call', [{ to: CONTRACT, data: iface.encodeFunctionData(fn, args) }, 'latest']))[0];
+  const results = [];
+  const check = (label, ok, detail) => { add(label, ok ? 'ok' : 'bad', detail); results.push(ok); };
+  const blockN = await rbb('eth_getBlockByNumber', ['0x' + bundle.nonce.blockNumber.toString(16), false]);
+  const notBefore = Number(BigInt(blockN.timestamp));
+  check('RBB: block N exists and its hash is the signed nonce', blockN.hash === bundle.nonce.blockHash, `block ${bundle.nonce.blockNumber} · ${new Date(notBefore * 1000).toISOString()}`);
+  const receipt = await rbb('eth_getTransactionReceipt', [anchor.transactionHash]);
+  const log = (receipt?.logs || []).find(l => l.address.toLowerCase() === CONTRACT.toLowerCase() && l.topics[0] === iface.getEvent('ObservationRecorded').topicHash);
+  const event = log ? iface.parseLog(log).args : null;
+  check('RBB: the transaction succeeded and records this exact evidence', receipt?.status === '0x1' && event?.evidenceHash === evidenceHash, anchor.transactionHash);
+  check('RBB: the event matches the URL, pdf hash, nonce and key', !!event && event.sourceURL === bundle.sourceURL && event.documentHash === bundle.document.sha256 &&
+    event.nonceBlockHash === bundle.nonce.blockHash && event.keyFingerprint === bundle.key.fingerprint);
+  const blockM = await rbb('eth_getBlockByNumber', [receipt.blockNumber, false]);
+  const registeredAt = Number(BigInt(blockM.timestamp));
+  const stored = Number(await call('evidenceRegisteredAt', [evidenceHash]));
+  check('RBB: block M timestamp equals the stored record time', !!event && Number(event.registeredAt) === registeredAt && stored === registeredAt,
+    `block ${Number(BigInt(receipt.blockNumber))} · ${new Date(registeredAt * 1000).toISOString()}`);
+  const keyAt = Number(await call('keyRegisteredAt', [ethers.id(new URL(bundle.sourceURL).host), bundle.key.fingerprint]));
+  check(`RBB: the key was registered for ${new URL(bundle.sourceURL).host} before the observation`, keyAt > 0 && keyAt <= registeredAt, keyAt ? new Date(keyAt * 1000).toISOString() : 'not registered');
+  check('window: block N is not after block M', notBefore <= registeredAt, `${new Date(notBefore * 1000).toISOString()} → ${new Date(registeredAt * 1000).toISOString()}`);
+  return results.every(Boolean);
+}
+
+async function loadIndex() {
+  const r = await fetch('evidencias/index.json', { cache: 'no-store' });
+  if (!r.ok) throw new Error('index unavailable');
+  return (await r.json()).observations || [];
+}
+
+async function renderIndex() {
+  const claim = document.getElementById('latest-claim');
+  const body = document.querySelector('#all tbody');
+  try {
+    const list = await loadIndex();
+    const latest = list.filter(o => o.anchored).at(-1);
+    if (latest) {
+      claim.innerHTML = `<strong>apolinar.io served <code>/publicacoes/diario-teste.pdf</code> between ${esc(when(latest.notBeforeISO))} and ${esc(when(latest.notAfterISO))} UTC.</strong>` +
+        `<dl class="kv"><dt>pdf sha-256</dt><dd><code>${esc(latest.documentHash)}</code></dd>` +
+        `<dt>rbb transaction</dt><dd><code>${esc(latest.transactionHash)}</code></dd>` +
+        `<dt>evidence</dt><dd><a href="evidencias/${esc(latest.evidenceHash.slice(2))}/bundle.json">${esc(short(latest.evidenceHash))}</a></dd></dl>`;
+      document.getElementById('cli').textContent = `node scripts/signed-verify.mjs ${CFG.publicEvidenceURL}${latest.evidenceHash.slice(2)}/`;
+    } else claim.textContent = 'No anchored observation yet.';
+    body.innerHTML = list.slice().reverse().map(o => `<tr><td>${esc(when(o.notBeforeISO))}<br>→ ${esc(when(o.notAfterISO))}</td><td><code>${esc(short(o.documentHash))}</code></td><td><a href="evidencias/${esc(o.evidenceHash.slice(2))}/bundle.json">bundle</a> · <a href="evidencias/${esc(o.evidenceHash.slice(2))}/anchor.json">anchor</a></td></tr>`).join('') || '<tr><td colspan="3">None yet.</td></tr>';
+  } catch {
+    claim.textContent = 'Could not load the observation list.';
+    body.innerHTML = '<tr><td colspan="3">Could not load evidencias/index.json.</td></tr>';
+  }
+}
+
+document.getElementById('live-btn').addEventListener('click', async ev => {
+  const btn = ev.currentTarget, status = document.getElementById('live-status');
+  const add = checklist(document.getElementById('live-checks'));
+  btn.disabled = true; status.textContent = 'fetching…';
+  try {
+    const nonce = hex(crypto.getRandomValues(new Uint8Array(32)));
+    add('random nonce sent', 'ok', nonce);
+    const r = await fetch(DOC, { cache: 'no-store', headers: { 'Accept-Signature': `sig1=${COMPONENTS};nonce="${nonce}"` } });
+    const body = await r.arrayBuffer();
+    const digest = r.headers.get('content-digest'), input = r.headers.get('signature-input'), sig = r.headers.get('signature');
+    if (!digest || !input || !sig) throw new Error('signature headers missing');
+    const mine = 'sha-256=:' + b64(await crypto.subtle.digest('SHA-256', body)) + ':';
+    add('pdf matches Content-Digest', mine === digest ? 'ok' : 'bad', `${body.byteLength} bytes · ${digest}`);
+    const parsed = parseInput(input);
+    add('signature covers domain, path and digest', parsed.components === COMPONENTS ? 'ok' : 'bad', parsed.components);
+    add('signature contains our nonce', parsed.params.nonce === nonce ? 'ok' : 'bad');
+    const keys = await (await fetch(KEYS, { cache: 'no-store' })).json();
+    const jwk = keys.keys.find(k => k.kid === parsed.params.keyid);
+    if (!jwk) throw new Error('key not published');
+    const m = /^sig1=:([A-Za-z0-9+/]+={0,2}):$/.exec(sig);
+    const ok = await ed25519Verify(jwk, base(new URL(DOC).host, new URL(DOC).pathname, digest, parsed.serialized), fromB64(m[1]));
+    add('Ed25519 signature valid for key ' + jwk.kid, ok ? 'ok' : 'bad');
+    status.textContent = ok ? 'the server signed this copy just now' : 'verification failed';
+  } catch (e) {
+    add(e.name === 'NotSupportedError' ? 'this browser lacks Ed25519 in WebCrypto' : String(e.message), 'bad');
+    status.textContent = '';
+  } finally { btn.disabled = false; }
+});
+
+document.getElementById('ev-btn').addEventListener('click', async ev => {
+  const btn = ev.currentTarget, status = document.getElementById('ev-status');
+  const add = checklist(document.getElementById('ev-checks'));
+  btn.disabled = true; status.textContent = 'downloading…';
+  try {
+    const latest = (await loadIndex()).filter(o => o.anchored).at(-1);
+    if (!latest) throw new Error('no anchored observation');
+    const dir = `evidencias/${latest.evidenceHash.slice(2)}/`;
+    const [bundleBytes, pdf, anchor] = await Promise.all([
+      fetch(dir + 'bundle.json', { cache: 'no-store' }).then(r => r.arrayBuffer()),
+      fetch(dir + 'document.pdf', { cache: 'no-store' }).then(r => r.arrayBuffer()),
+      fetch(dir + 'anchor.json', { cache: 'no-store' }).then(r => r.json())
+    ]);
+    const evidenceHash = hex(await crypto.subtle.digest('SHA-256', bundleBytes));
+    add('bundle.json hashes to the recorded evidenceHash', evidenceHash === latest.evidenceHash ? 'ok' : 'bad', evidenceHash);
+    const bundle = JSON.parse(new TextDecoder().decode(bundleBytes));
+    const pdfHash = hex(await crypto.subtle.digest('SHA-256', pdf));
+    add('pdf hashes to documentHash', pdfHash === bundle.document.sha256 ? 'ok' : 'bad', pdfHash);
+    const digest = 'sha-256=:' + b64(await crypto.subtle.digest('SHA-256', pdf)) + ':';
+    add('pdf matches the signed Content-Digest', digest === bundle.response.contentDigest ? 'ok' : 'bad');
+    const parsed = parseInput(bundle.response.signatureInput);
+    add('signed nonce is block N\'s hash', parsed.params.nonce === bundle.nonce.blockHash ? 'ok' : 'bad', `RBB block ${bundle.nonce.blockNumber} · ${bundle.nonce.blockHash}`);
+    const url = new URL(bundle.sourceURL);
+    const m = /^sig1=:([A-Za-z0-9+/]+={0,2}):$/.exec(bundle.response.signature);
+    const ok = await ed25519Verify(bundle.key.jwk, base(url.host, url.pathname, bundle.response.contentDigest, parsed.serialized), fromB64(m[1]));
+    add('apolinar.io\'s Ed25519 signature is valid', ok ? 'ok' : 'bad', 'key ' + bundle.key.jwk.kid);
+    const keys = await (await fetch(KEYS, { cache: 'no-store' })).json();
+    add('that key is still published by the domain', keys.keys.some(k => k.x === bundle.key.jwk.x) ? 'ok' : 'bad');
+    let chainOk = true;
+    try {
+      status.textContent = 'checking the RBB…';
+      chainOk = await chainChecks(add, bundle, anchor, latest.evidenceHash);
+      status.textContent = ok && chainOk ? 'everything checks out, including the RBB' : 'verification failed';
+    } catch {
+      add('recorded on the RBB', 'wait', `tx ${anchor.transactionHash} · block ${anchor.blockNumber} — this page has no RBB connection; run the local verifier or the CLI below`);
+      status.textContent = ok ? 'evidence is consistent; RBB not checked here' : 'verification failed';
+    }
+  } catch (e) {
+    add(e.name === 'NotSupportedError' ? 'this browser lacks Ed25519 in WebCrypto' : String(e.message), 'bad');
+    status.textContent = '';
+  } finally { btn.disabled = false; }
+});
+
+document.getElementById('cfg-network').textContent = `${CFG.networkLabel} · chain id ${CFG.chainId} · rpc ${CFG.rpcUpstream}`;
+document.getElementById('cfg-contract').textContent = CFG.contract;
+document.getElementById('cfg-writer').textContent = CFG.writer;
+renderIndex();
+</script>
+</body>
+</html>

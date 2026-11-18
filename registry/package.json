@@ -10,7 +10,13 @@
     "test": "node --test test/*.test.mjs",
     "batch:plan": "node scripts/plan-publication-batch.mjs",
     "batch:key": "node scripts/configure-batch-key.mjs",
-    "batch:run": "node scripts/run-publication-batch.mjs"
+    "batch:run": "node scripts/run-publication-batch.mjs",
+    "signed:deploy": "node scripts/signed-deploy.mjs",
+    "signed:observe": "node scripts/signed-observe.mjs",
+    "signed:verify": "node scripts/signed-verify.mjs",
+    "verifier": "node verifier/server.mjs",
+    "relayer": "node relayer/server.mjs",
+    "signer": "node ../signed-origin/server.mjs"
   },
   "dependencies": { "ethers": "6.17.0" },
   "devDependencies": { "solc": "0.8.30" },

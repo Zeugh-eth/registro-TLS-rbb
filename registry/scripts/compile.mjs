@@ -38,6 +38,7 @@ export function compile(name = 'DocumentRegistry') {
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   compile('PublicationRegistry');
+  compile('SignedPublicationRegistry');
   const artifact = compile();
   console.log(`Compiled DocumentRegistry (${artifact.compiler}), EVM ${artifact.evmVersion}`);
 }
