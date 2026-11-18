@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>verify a url · apolinar.io</title>
+<meta name="description" content="Paste a URL and check, against Rede Blockchain Brasil, when its server signed and served it.">
+<style>
+:root {
+  --ink: #111; --muted: #777; --bg: #f6f6f6; --hi: #FFFB05; --white: #fff; --ok: #0a7d32; --bad: #c0151b;
+  --sans: "Helvetica Neue", Helvetica, Arial, sans-serif; --mono: 'Courier New', monospace;
+  --border: 2px solid var(--ink); --shadow: 0.3ex 0.3ex var(--ink); --shadow-lg: 0.5ex 0.5ex var(--ink);
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); overflow-y: scroll; }
+body { margin: 0 auto; max-width: 52em; padding: 2em 16px 4em; color: var(--ink); font: 100%/1.45 var(--sans); }
+::selection { background: var(--hi); }
+a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--muted); word-break: break-all; }
+a:hover { color: var(--ink); background: var(--hi); border-bottom-color: var(--ink); }
+h1 { font-size: clamp(2em, 6vw, 2.8em); line-height: 1.05; letter-spacing: -0.02em; margin: 0.4em 0 0.3em; }
+h2 { font-size: 1.3em; margin: 2em 0 0.6em; }
+p { margin: 0 0 0.8em; }
+code, .mono { font-family: var(--mono); }
+code { font-size: 0.9em; word-break: break-all; }
+.meta { font-family: var(--mono); font-size: 0.8em; letter-spacing: 0.05em; color: var(--muted); }
+form { display: flex; gap: 0.6em; flex-wrap: wrap; margin: 1.4em 0 0.6em; }
+input[type=url] { flex: 1 1 22em; min-width: 0; font: inherit; font-family: var(--mono); font-size: 0.95em; padding: 0.7em 0.8em; border: var(--border); box-shadow: var(--shadow); background: var(--white); color: var(--ink); }
+input[type=url]:focus { outline: none; background: #fffef0; }
+button { font: inherit; font-weight: bold; background: var(--ink); color: var(--white); border: var(--border); box-shadow: var(--shadow); padding: 0.7em 1.2em; cursor: pointer; transition: transform 0.15s ease; }
+button:hover, button:focus-visible { background: var(--hi); color: var(--ink); transform: translateX(3px); outline: none; }
+button:disabled { opacity: 0.5; cursor: wait; }
+button.small { padding: 0.35em 0.8em; font-size: 0.9em; }
+.box { background: var(--white); border: var(--border); box-shadow: var(--shadow-lg); padding: 1.1em 1.2em; margin: 1em 0; }
+.verdict { font-size: 1.2em; }
+.verdict strong { background: var(--hi); }
+.verdict.none strong { background: none; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.3em 1em; font-size: 0.95em; margin: 0.8em 0 0; }
+.kv dt { font-family: var(--mono); font-size: 0.85em; color: var(--muted); padding-top: 0.12em; }
+.kv dd { margin: 0; word-break: break-all; }
+.obs { background: var(--white); border: var(--border); box-shadow: var(--shadow); padding: 0.9em 1em; margin: 0.8em 0; }
+.obs-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.4em 1em; align-items: baseline; }
+.obs-head b { font-size: 1.05em; }
+.tag { font-family: var(--mono); font-size: 0.8em; border: 1px solid var(--ink); padding: 0.05em 0.4em; }
+.tag.ok { background: var(--hi); }
+.tag.bad { background: var(--bad); color: var(--white); border-color: var(--bad); }
+.tag.wait { color: var(--muted); border-color: var(--muted); }
+.checks { list-style: none; padding: 0; margin: 0.7em 0 0; display: grid; gap: 0.3em; font-size: 0.95em; }
+.checks li { display: flex; gap: 0.6em; align-items: baseline; }
+.checks .s { font-family: var(--mono); font-weight: bold; min-width: 1.2em; }
+.checks .ok .s { color: var(--ok); }
+.checks .bad .s { color: var(--bad); }
+.checks small { display: block; color: var(--muted); word-break: break-all; }
+details summary { cursor: pointer; font-family: var(--mono); font-size: 0.85em; color: var(--muted); margin-top: 0.6em; }
+.status { min-height: 1.4em; }
+footer { margin-top: 3em; padding-top: 1em; border-top: var(--border); font-size: 0.9em; }
+</style>
+</head>
+<body>
+<p class="meta"><a href="/">apolinar.io</a> / <a href="../">publicacoes</a> / verificar</p>
+<h1>when was this url online?</h1>
+<p>Paste the URL of a document. This page reads every observation recorded on <b>Rede Blockchain Brasil</b> for it, downloads the evidence and checks it in your browser: the server's signature, the file hash, and the two RBB blocks that bound each observation.</p>
+
+<form id="form">
+  <input type="url" id="url" required placeholder="https://example.org/publicacoes/documento.pdf" aria-label="URL to verify">
+  <button type="submit" id="go">verify</button>
+</form>
+<p class="meta status" id="status"></p>
+
+<div id="out"></div>
+
+<footer>
+  <dl class="kv">
+    <dt>network</dt><dd id="cfg-network">RBB</dd>
+    <dt>contract</dt><dd><code id="cfg-contract"></code> · SignedPublicationRegistry</dd>
+    <dt>evidence</dt><dd><a id="cfg-evidence" href="../evidencias/index.json">evidencias/</a></dd>
+    <dt>how it works</dt><dd><a href="../">the flow, explained</a></dd>
+  </dl>
+  <p class="meta" style="margin-top:1em">The proxy could in principle lie about the chain. Each check below says where its data came from; for a check with no proxy involved, run <code>scripts/signed-verify.mjs</code> from registro-TLS-rbb against your own RBB node.</p>
+</footer>
+
+<script type="module">
+import { ethers } from './ethers.min.js';
+
+const CFG = await fetch('../config.json', { cache: 'no-store' }).then(r => r.json());
+const CHAIN_ID = CFG.chainId;
+const CONTRACT = CFG.contract;
+const RPC = new URL(CFG.rpc, new URL('../', location.href)).href;
+const MIRRORS = [new URL('../evidencias/', location.href).href, CFG.publicEvidenceURL].filter((v, i, a) => v && a.indexOf(v) === i);
+const COMPONENTS = '("@authority";req "@path";req "content-digest")';
+const ABI = [
+  'function signatureScheme() view returns (string)',
+  'function observationCount(bytes32) view returns (uint256)',
+  'function observationAt(bytes32, uint256) view returns (tuple(uint64 registeredAt, uint64 nonceBlockNumber, bytes32 nonceBlockHash, bytes32 documentHash, bytes32 evidenceHash, bytes32 keyFingerprint))',
+  'function keyRegisteredAt(bytes32, bytes32) view returns (uint64)'
+];
+
+const provider = new ethers.JsonRpcProvider(RPC, CHAIN_ID, { staticNetwork: true, batchMaxCount: 1 });
+const registry = new ethers.Contract(CONTRACT, ABI, provider);
+const enc = new TextEncoder();
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const hex = buf => '0x' + [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+const b64 = buf => { let s = ''; for (const b of new Uint8Array(buf)) s += String.fromCharCode(b); return btoa(s); };
+const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const fromB64url = s => fromB64(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4));
+const sha256 = async data => crypto.subtle.digest('SHA-256', data);
+const iso = ts => new Date(Number(ts) * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC');
+const short = h => h.slice(0, 10) + '…' + h.slice(-6);
+
+function parseInput(value) {
+  const m = /^sig1=(\([^()]*\))((?:;[a-z]+=(?:"[^"\\]*"|\d+))*)$/.exec(value || '');
+  if (!m) throw new Error('malformed Signature-Input');
+  const params = {};
+  for (const [, k, t, n] of m[2].matchAll(/;([a-z]+)=(?:"([^"\\]*)"|(\d+))/g)) params[k] = t ?? Number(n);
+  return { components: m[1], params, serialized: m[1] + m[2] };
+}
+const signatureBase = (authority, path, digest, serialized) =>
+  `"@authority";req: ${authority}\n"@path";req: ${path}\n"content-digest": ${digest}\n"@signature-params": ${serialized}`;
+
+async function ed25519(jwk, message, signature) {
+  const key = await crypto.subtle.importKey('jwk', { kty: 'OKP', crv: 'Ed25519', x: jwk.x }, { name: 'Ed25519' }, false, ['verify']);
+  return crypto.subtle.verify({ name: 'Ed25519' }, key, signature, enc.encode(message));
+}
+
+async function fetchEvidence(evidenceHash) {
+  for (const base of MIRRORS) {
+    const dir = base + evidenceHash.slice(2) + '/';
+    try {
+      const [b, d] = await Promise.all([fetch(dir + 'bundle.json', { cache: 'no-store' }), fetch(dir + 'document.pdf', { cache: 'no-store' })]);
+      if (b.ok && d.ok) return { dir, bundleBytes: await b.arrayBuffer(), pdf: await d.arrayBuffer() };
+    } catch {}
+  }
+  return null;
+}
+
+async function verifyObservation(url, o, keyTimes) {
+  const checks = [];
+  const add = (label, ok, detail = '') => { checks.push({ label, ok, detail }); return ok; };
+  const block = await provider.send('eth_getBlockByNumber', ['0x' + o.nonceBlockNumber.toString(16), false]);
+  const notBefore = Number(BigInt(block?.timestamp ?? 0));
+  add('block N is on the RBB and its hash is the recorded nonce', block?.hash === o.nonceBlockHash,
+    `block ${o.nonceBlockNumber} · ${o.nonceBlockHash} · source: rpc proxy`);
+  add('recorded on the RBB at block M', Number(o.registeredAt) >= notBefore, `${iso(o.registeredAt)} · contract state · source: rpc proxy`);
+  const keyAt = keyTimes.get(o.keyFingerprint);
+  add('signing key was registered for this domain before the observation', keyAt > 0n && keyAt <= o.registeredAt,
+    `key ${short(o.keyFingerprint)} registered ${keyAt ? iso(keyAt) : 'never'}`);
+  const ev = await fetchEvidence(o.evidenceHash);
+  if (!add('evidence files found', !!ev, ev ? ev.dir : 'not in any known mirror')) return { checks, notBefore, ok: false };
+  add('bundle.json matches the evidence hash on the RBB', hex(await sha256(ev.bundleBytes)) === o.evidenceHash, o.evidenceHash);
+  const bundle = JSON.parse(new TextDecoder().decode(ev.bundleBytes));
+  add('bundle is for this exact URL', bundle.sourceURL === url, bundle.sourceURL);
+  add('pdf matches the document hash on the RBB', hex(await sha256(ev.pdf)) === o.documentHash, `${ev.pdf.byteLength} bytes · ${o.documentHash}`);
+  const digest = 'sha-256=:' + b64(await sha256(ev.pdf)) + ':';
+  add('pdf matches the signed Content-Digest', digest === bundle.response.contentDigest);
+  const p = parseInput(bundle.response.signatureInput);
+  add('signature covers domain, path and digest', p.components === COMPONENTS && p.params.alg === 'ed25519');
+  add('signed nonce is block N\'s hash', p.params.nonce === o.nonceBlockHash);
+  const fp = hex(await sha256(fromB64url(bundle.key.jwk.x)));
+  add('the key in the evidence is the registered key', fp === o.keyFingerprint, bundle.key.jwk.kid);
+  const u = new URL(bundle.sourceURL);
+  const m = /^sig1=:([A-Za-z0-9+/]+={0,2}):$/.exec(bundle.response.signature);
+  let sigOk = false;
+  try { sigOk = !!m && await ed25519(bundle.key.jwk, signatureBase(u.host, u.pathname, bundle.response.contentDigest, p.serialized), fromB64(m[1])); }
+  catch (e) { if (e.name === 'NotSupportedError') throw new Error('This browser has no Ed25519 in WebCrypto. Try a current Chrome, Firefox or Safari.'); }
+  add(`${u.host}'s Ed25519 signature is valid`, sigOk);
+  return { checks, notBefore, ok: checks.every(c => c.ok), dir: ev.dir };
+}
+
+function renderChecks(checks) {
+  return '<ul class="checks">' + checks.map(c =>
+    `<li class="${c.ok ? 'ok' : 'bad'}"><span class="s">${c.ok ? '✓' : '✗'}</span><span>${esc(c.label)}${c.detail ? `<small>${esc(c.detail)}</small>` : ''}</span></li>`).join('') + '</ul>';
+}
+
+async function liveCheck(url, slot) {
+  slot.innerHTML = '<p class="meta">asking the server for a fresh signed copy…</p>';
+  const checks = [];
+  const add = (label, ok, detail = '') => checks.push({ label, ok, detail });
+  try {
+    const head = await provider.send('eth_getBlockByNumber', ['latest', false]);
+    const nonce = head.hash;
+    add('nonce = newest RBB block hash', true, `block ${Number(BigInt(head.number))} · ${nonce}`);
+    const r = await fetch(url, { cache: 'no-store', headers: { 'Accept-Signature': `sig1=${COMPONENTS};nonce="${nonce}"` } });
+    add('server answered', r.ok, `HTTP ${r.status}`);
+    const body = await r.arrayBuffer();
+    const digest = r.headers.get('content-digest'), input = r.headers.get('signature-input'), sig = r.headers.get('signature');
+    if (!digest || !input || !sig) throw new Error('the server did not return signature headers');
+    add('file matches Content-Digest', 'sha-256=:' + b64(await sha256(body)) + ':' === digest, `${body.byteLength} bytes · sha-256 ${hex(await sha256(body))}`);
+    const p = parseInput(input);
+    add('signature contains this nonce', p.params.nonce === nonce);
+    const u = new URL(url);
+    const keys = await (await fetch(new URL('/.well-known/publication-key.json', url), { cache: 'no-store' })).json();
+    const jwk = (keys.keys || []).find(k => k.kid === p.params.keyid);
+    if (!jwk) throw new Error('signing key not published at /.well-known/publication-key.json');
+    const fp = hex(await sha256(fromB64url(jwk.x)));
+    const keyAt = await registry.keyRegisteredAt(ethers.id(u.host), fp);
+    add('key is registered on the RBB for this domain', keyAt > 0n, keyAt > 0n ? `since ${iso(keyAt)}` : 'not registered');
+    const m = /^sig1=:([A-Za-z0-9+/]+={0,2}):$/.exec(sig);
+    add(`${u.host}'s Ed25519 signature is valid`, !!m && await ed25519(jwk, signatureBase(u.host, u.pathname, digest, p.serialized), fromB64(m[1])));
+    slot.innerHTML = `<p><b>${checks.every(c => c.ok) ? 'online and signing right now.' : 'live check failed.'}</b> This copy is not recorded on the RBB.</p>` + renderChecks(checks);
+  } catch (e) {
+    const cors = e instanceof TypeError ? ' The server may not allow cross-origin requests (CORS) with an Accept-Signature header.' : '';
+    slot.innerHTML = renderChecks(checks) + `<p class="meta">✗ ${esc(e.message)}.${cors}</p>`;
+  }
+}
+
+async function verify(raw) {
+  const out = $('out'), status = $('status'), go = $('go');
+  let url;
+  try { url = new URL(raw.trim()).href; } catch { status.textContent = 'that is not a valid URL'; return; }
+  history.replaceState(null, '', '?url=' + encodeURIComponent(url));
+  go.disabled = true; out.innerHTML = '';
+  try {
+    status.textContent = 'reading the RBB…';
+    const sourceId = ethers.id(url);
+    const count = Number(await registry.observationCount(sourceId));
+    const u = new URL(url);
+    if (!count) {
+      out.innerHTML = `<div class="box verdict none"><strong>No observation of this URL is recorded on the RBB.</strong>
+        <dl class="kv"><dt>url</dt><dd><code>${esc(url)}</code></dd><dt>source id</dt><dd><code>${sourceId}</code></dd></dl>
+        <p class="meta" style="margin-top:0.8em">URLs must match exactly, including https, case and path.</p>
+        <div style="margin-top:0.8em"><button class="small" id="live">check it live now</button></div><div id="live-slot"></div></div>`;
+      $('live').onclick = () => liveCheck(url, $('live-slot'));
+      status.textContent = '';
+      return;
+    }
+    const observations = [];
+    for (let i = 0; i < count; i++) {
+      status.textContent = `reading observation ${i + 1} of ${count}…`;
+      const o = await registry.observationAt(sourceId, i);
+      observations.push({ index: i, registeredAt: o.registeredAt, nonceBlockNumber: Number(o.nonceBlockNumber), nonceBlockHash: o.nonceBlockHash,
+        documentHash: o.documentHash, evidenceHash: o.evidenceHash, keyFingerprint: o.keyFingerprint });
+    }
+    const keyTimes = new Map();
+    for (const fp of new Set(observations.map(o => o.keyFingerprint))) keyTimes.set(fp, await registry.keyRegisteredAt(ethers.id(u.host), fp));
+    const results = [];
+    for (const o of observations) {
+      status.textContent = `verifying observation ${o.index + 1} of ${count}…`;
+      results.push({ o, ...(await verifyObservation(url, o, keyTimes)) });
+    }
+    const valid = results.filter(r => r.ok);
+    const first = valid[0], last = valid.at(-1);
+    const versions = [...new Set(valid.map(r => r.o.documentHash))];
+    out.innerHTML = (valid.length ? `<div class="box verdict"><strong>${esc(u.host)} signed and served this URL ${valid.length === 1 ? 'once on record' : valid.length + ' times on record'}.</strong>
+      <dl class="kv">
+        <dt>first seen</dt><dd>between ${iso(first.notBefore)} and ${iso(first.o.registeredAt)}</dd>
+        <dt>last seen</dt><dd>between ${iso(last.notBefore)} and ${iso(last.o.registeredAt)}</dd>
+        <dt>versions</dt><dd>${versions.length === 1 ? 'same content every time' : versions.length + ' different files'} · <code>${esc(versions.map(short).join(', '))}</code></dd>
+        <dt>verified</dt><dd>${valid.length} of ${results.length} observations pass every check</dd>
+      </dl>
+      <div style="margin-top:0.9em"><button class="small" id="live">check it live now</button></div><div id="live-slot"></div></div>`
+      : `<div class="box verdict none"><strong>${results.length} observation(s) recorded, but none passed every check.</strong></div>`) +
+      '<h2>observations</h2>' + results.slice().reverse().map(r => `<div class="obs">
+        <div class="obs-head"><b>${iso(r.notBefore)} → ${iso(r.o.registeredAt)}</b><span class="tag ${r.ok ? 'ok' : 'bad'}">${r.ok ? 'verified' : 'failed'}</span></div>
+        <dl class="kv"><dt>pdf sha-256</dt><dd><code>${r.o.documentHash}</code></dd><dt>evidence</dt><dd>${r.dir ? `<a href="${esc(r.dir)}bundle.json">${short(r.o.evidenceHash)}</a>` : `<code>${short(r.o.evidenceHash)}</code>`}</dd></dl>
+        <details${r.ok ? '' : ' open'}><summary>${r.checks.filter(c => c.ok).length}/${r.checks.length} checks</summary>${renderChecks(r.checks)}</details></div>`).join('');
+    const live = $('live');
+    if (live) live.onclick = () => liveCheck(url, $('live-slot'));
+    status.textContent = '';
+  } catch (e) {
+    status.textContent = '';
+    out.innerHTML = `<div class="box verdict none"><strong>Could not finish the check.</strong><p class="meta" style="margin-top:0.6em">${esc(e.shortMessage || e.message)}</p></div>`;
+  } finally { go.disabled = false; }
+}
+
+$('cfg-network').textContent = `${CFG.networkLabel} · chain id ${CFG.chainId}, read through a read-only proxy to ${CFG.rpcUpstream}`;
+$('cfg-contract').textContent = CFG.contract;
+if (CFG.publicEvidenceURL) { $('cfg-evidence').textContent = CFG.publicEvidenceURL; }
+if (CFG.sampleURL && !$('url').value) $('url').value = CFG.sampleURL;
+$('form').addEventListener('submit', e => { e.preventDefault(); verify($('url').value); });
+const preset = new URLSearchParams(location.search).get('url');
+if (preset) { $('url').value = preset; verify(preset); }
+</script>
+</body>
+</html>

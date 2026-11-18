@@ -123,6 +123,8 @@ arquivo persistente, downloads, falhas de RPC e validação offline da apresenta
 ## Documentação
 
 - [Publicação, contrato e confiança](docs/PUBLICATION.md)
+- [Respostas assinadas pelo servidor (RFC 9421), sem notary](docs/SIGNED.md)
+- [Instalação em outra organização, guia para agentes](docs/AGENT_INSTALL.md)
 - [Lotes e retomada](docs/BATCH.md)
 - [Declarações, persistência e consultas](docs/DECLARATIONS.md)
 - [Dependências e licenças existentes](THIRD_PARTY.md)
